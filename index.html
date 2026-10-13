@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Học tiếng Anh thụ động</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+    margin: 0;
+    padding: 16px;
+    background: #1c2733;
+    color: #fff;
+    min-height: 100vh;
+  }
+  h2 { text-align: center; margin: 8px 0 20px; font-size: 18px; }
+  .card {
+    background: #2a3947;
+    border-radius: 12px;
+    padding: 16px;
+    margin-bottom: 12px;
+  }
+  select, button {
+    font-size: 15px;
+    border-radius: 8px;
+    border: none;
+    padding: 10px;
+  }
+  select {
+    width: 100%;
+    background: #1c2733;
+    color: #fff;
+    margin-bottom: 12px;
+  }
+  audio { width: 100%; margin: 8px 0; }
+  .controls {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 8px;
+    margin-top: 12px;
+  }
+  .controls button {
+    background: #4a5c6e;
+    color: #fff;
+    cursor: pointer;
+    font-size: 18px;
+  }
+  .controls button.active { background: #7c5cff; }
+  .speed-row {
+    display: flex;
+    gap: 8px;
+    margin-top: 12px;
+  }
+  .speed-row button {
+    flex: 1;
+    background: #4a5c6e;
+    color: #fff;
+    cursor: pointer;
+    font-size: 14px;
+  }
+  .speed-row button.active { background: #7c5cff; }
+  #status {
+    text-align: center;
+    margin-top: 12px;
+    font-size: 14px;
+    color: #9ab0c4;
+  }
+</style>
+</head>
+<body>
+
+<h2>🎵 Học tiếng Anh thụ động</h2>
+
+<div class="card">
+  <label>Chọn bài:</label>
+  <select id="songSelect"></select>
+  <audio id="player" controls loop></audio>
+
+  <div class="controls">
+    <button id="btnPrev">⏮</button>
+    <button id="btnPlay">⏸</button>
+    <button id="btnNext">⏭</button>
+    <button id="btnLoop" class="active">🔁</button>
+  </div>
+
+  <div class="speed-row">
+    <button data-speed="0.75">0.75x</button>
+    <button data-speed="1" class="active">1x</button>
+    <button data-speed="1.25">1.25x</button>
+    <button data-speed="1.5">1.5x</button>
+  </div>
+
+  <div id="status">Sẵn sàng</div>
+</div>
+
+<script>
+  Telegram.WebApp.ready();
+  Telegram.WebApp.expand();
+
+  const player = document.getElementById('player');
+  const select = document.getElementById('songSelect');
+  const status = document.getElementById('status');
+  const btnPlay = document.getElementById('btnPlay');
+  const btnLoop = document.getElementById('btnLoop');
+
+  let songs = [];
+  let currentIndex = 0;
+
+  // Tải danh sách bài
+  fetch('playlist.json?t=' + Date.now())
+    .then(r => r.json())
+    .then(data => {
+      songs = data.songs || [];
+      if (songs.length === 0) {
+        status.textContent = 'Chưa có bài nào';
+        return;
+      }
+      songs.forEach((song, i) => {
+        const opt = document.createElement('option');
+        opt.value = i;
+        opt.textContent = (i + 1) + '. ' + song;
+        select.appendChild(opt);
+      });
+      playSong(0);
+    })
+    .catch(err => {
+      status.textContent = 'Lỗi tải playlist: ' + err;
+    });
+
+  function playSong(index) {
+    if (index < 0 || index >= songs.length) return;
+    currentIndex = index;
+    select.value = index;
+    player.src = songs[index];
+    player.play().catch(() => {});
+    status.textContent = '🔁 Đang lặp: ' + songs[index];
+    btnPlay.textContent = '⏸';
+  }
+
+  select.addEventListener('change', e => playSong(parseInt(e.target.value)));
+
+  btnPlay.addEventListener('click', () => {
+    if (player.paused) { player.play(); btnPlay.textContent = '⏸'; }
+    else { player.pause(); btnPlay.textContent = '▶️'; }
+  });
+
+  document.getElementById('btnNext').addEventListener('click', () => {
+    playSong((currentIndex + 1) % songs.length);
+  });
+
+  document.getElementById('btnPrev').addEventListener('click', () => {
+    playSong((currentIndex - 1 + songs.length) % songs.length);
+  });
+
+  btnLoop.addEventListener('click', () => {
+    player.loop = !player.loop;
+    btnLoop.classList.toggle('active', player.loop);
+    status.textContent = player.loop ? '🔁 Đang lặp' : '➡️ Phát tuần tự';
+  });
+
+  document.querySelectorAll('.speed-row button').forEach(btn => {
+    btn.addEventListener('click', () => {
+      player.playbackRate = parseFloat(btn.dataset.speed);
+      document.querySelectorAll('.speed-row button').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+    });
+  });
+
+  // Tự chuyển bài khi hết nếu tắt loop
+  player.addEventListener('ended', () => {
+    if (!player.loop) playSong((currentIndex + 1) % songs.length);
+  });
+</script>
+
+</body>
+</html>
