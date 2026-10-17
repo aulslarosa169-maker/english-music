@@ -265,8 +265,10 @@
         playlistData = data;
       }
 
-      // Render dropdown Chủ đề
-      const folders = Object.keys(playlistData).filter(f => playlistData[f].length > 0);
+      // Render dropdown Chủ đề. Nhìn thấy những chủ đề đã có bài hát sẵn sàng để nghe.
+      // const folders = Object.keys(playlistData).filter(f => playlistData[f].length > 0);
+      // bỏ filter đi sẽ giúp bạn nhìn thấy ngay chủ đề vừa tạo trên giao diện, giúp bạn yên tâm là bot đã tạo thành công. (Khi bấm vào chủ đề trống, giao diện sẽ hiện dòng chữ "Chủ đề này trống").
+      const folders = Object.keys(playlistData);
       
       if (folders.length === 0) {
         status.textContent = 'Chưa có bài nào';
