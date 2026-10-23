@@ -177,7 +177,7 @@
 </body>
 </html> -->
 
-<!DOCTYPE html>
+<!-- <!DOCTYPE html>
 <html lang="vi">
 <head>
 <meta charset="UTF-8">
@@ -358,7 +358,282 @@
 </script>
 
 </body>
+</html> -->
+
+
+
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Học tiếng Anh thụ động</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+    margin: 0; padding: 16px;
+    background: #1c2733; color: #fff; min-height: 100vh;
+  }
+  h2 { text-align: center; margin: 8px 0 20px; font-size: 18px; }
+  .card { background: #2a3947; border-radius: 12px; padding: 16px; margin-bottom: 12px; }
+  label { font-size: 13px; color: #9ab0c4; display: block; margin-bottom: 4px; }
+  select, button { font-size: 15px; border-radius: 8px; border: none; padding: 10px; }
+  select { width: 100%; background: #1c2733; color: #fff; margin-bottom: 12px; outline: none; }
+  audio { width: 100%; margin: 8px 0; }
+  
+  /* Khung hiển thị phụ đề */
+  #captionBox {
+    min-height: 60px;
+    text-align: center;
+    margin: 10px 0;
+    padding: 10px;
+    background: #1c2733;
+    border-radius: 8px;
+    font-size: 16px;
+    font-weight: bold;
+    color: #fff;
+    display: none; /* Mặc định ẩn */
+    line-height: 1.4;
+  }
+
+  .controls { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-top: 12px; }
+  .controls button { background: #4a5c6e; color: #fff; cursor: pointer; font-size: 18px; }
+  .controls button.active { background: #7c5cff; }
+  .speed-row { display: flex; gap: 8px; margin-top: 12px; }
+  .speed-row button { flex: 1; background: #4a5c6e; color: #fff; cursor: pointer; font-size: 14px; }
+  .speed-row button.active { background: #7c5cff; }
+  #status { text-align: center; margin-top: 12px; font-size: 14px; color: #9ab0c4; }
+</style>
+</head>
+<body>
+
+<h2>🎵 Học tiếng Anh thụ động</h2>
+
+<div class="card">
+  <label>Chọn chủ đề:</label>
+  <select id="folderSelect"></select>
+
+  <label>Chọn bài:</label>
+  <select id="songSelect"></select>
+
+  <label>Phụ đề:</label>
+  <select id="captionSelect">
+    <option value="off">Tắt phụ đề</option>
+    <option value="en">Chỉ Tiếng Anh</option>
+    <option value="vi">Chỉ Tiếng Việt</option>
+  </select>
+
+  <!-- Khung hiển thị phụ đề -->
+  <div id="captionBox"></div>
+
+  <audio id="player" controls loop></audio>
+
+  <div class="controls">
+    <button id="btnPrev">⏮</button>
+    <button id="btnPlay">⏸</button>
+    <button id="btnNext">⏭</button>
+    <button id="btnLoop" class="active">🔁</button>
+  </div>
+
+  <div class="speed-row">
+    <button data-speed="0.75">0.75x</button>
+    <button data-speed="1" class="active">1x</button>
+    <button data-speed="1.25">1.25x</button>
+    <button data-speed="1.5">1.5x</button>
+  </div>
+
+  <div id="status">Đang tải...</div>
+</div>
+
+<script>
+  Telegram.WebApp.ready();
+  Telegram.WebApp.expand();
+
+  const player = document.getElementById('player');
+  const folderSelect = document.getElementById('folderSelect');
+  const songSelect = document.getElementById('songSelect');
+  const captionSelect = document.getElementById('captionSelect');
+  const captionBox = document.getElementById('captionBox');
+  const status = document.getElementById('status');
+  const btnPlay = document.getElementById('btnPlay');
+  const btnLoop = document.getElementById('btnLoop');
+
+  let playlistData = {};
+  let currentFolder = "";
+  let currentSongs = [];
+  let currentIndex = 0;
+  let currentCaptions = []; // Chứa dữ liệu phụ đề đã được bóc tách
+
+  fetch('playlist.json?t=' + Date.now())
+    .then(r => r.json())
+    .then(data => {
+      if (Array.isArray(data)) { playlistData = { "Chung": data }; }
+      else if (data.songs) { playlistData = { "Chung": data.songs }; }
+      else { playlistData = data; }
+
+      const folders = Object.keys(playlistData);
+      if (folders.length === 0) { status.textContent = 'Chưa có bài nào'; return; }
+
+      folders.forEach(folder => {
+        const opt = document.createElement('option');
+        opt.value = folder;
+        opt.textContent = '📁 ' + folder;
+        folderSelect.appendChild(opt);
+      });
+
+      currentFolder = folders[0];
+      loadFolder(currentFolder);
+    })
+    .catch(err => { status.textContent = 'Lỗi tải playlist: ' + err; });
+
+  function loadFolder(folderName) {
+    currentFolder = folderName;
+    currentSongs = playlistData[folderName] || [];
+    
+    songSelect.innerHTML = '';
+    currentSongs.forEach((song, i) => {
+      const opt = document.createElement('option');
+      opt.value = i;
+      opt.textContent = (i + 1) + '. ' + song;
+      songSelect.appendChild(opt);
+    });
+
+    if (currentSongs.length > 0) { playSong(0); } 
+    else { player.pause(); status.textContent = 'Chủ đề này trống'; }
+  }
+
+  function playSong(index) {
+    if (index < 0 || index >= currentSongs.length) return;
+    currentIndex = index;
+    songSelect.value = index;
+    
+    // Thiết lập đường dẫn Audio
+    const songFile = currentSongs[index];
+    const filePath = encodeURIComponent(currentFolder) + '/' + encodeURIComponent(songFile);
+    
+    player.src = filePath;
+    player.play().catch(() => {});
+    status.textContent = '🔁 Đang lặp: ' + songFile;
+    btnPlay.textContent = '⏸';
+
+    // Tải phụ đề tương ứng (đổi đuôi thành .vtt)
+    const subtitleFile = songFile.replace(/\.[^/.]+$/, "") + ".vtt";
+    const subtitlePath = encodeURIComponent(currentFolder) + '/' + encodeURIComponent(subtitleFile);
+    loadSubtitles(subtitlePath);
+  }
+
+  // Hàm tải và xử lý file phụ đề
+  function loadSubtitles(url) {
+    currentCaptions = [];
+    captionBox.textContent = ""; // Xóa phụ đề cũ
+
+    fetch(url)
+      .then(r => {
+        if (!r.ok) throw new Error("Không có phụ đề");
+        return r.text();
+      })
+      .then(text => {
+        // Regex để bóc tách mốc thời gian và nội dung
+        const regex = /(\d{2}:\d{2}:\d{2}[\.,]\d{3})\s*-->\s*(\d{2}:\d{2}:\d{2}[\.,]\d{3})[\r\n]+([\s\S]*?)(?=\n\n|\n*$)/g;
+        let match;
+        while ((match = regex.exec(text)) !== null) {
+          const start = timeToSeconds(match[1]);
+          const end = timeToSeconds(match[2]);
+          const rawText = match[3].trim();
+          
+          // Tách Tiếng Anh và Tiếng Việt
+          // Dòng 1: Tiếng Anh
+          // Dòng 2 (trong ngoặc): Tiếng Việt
+          let enText = rawText;
+          let viText = "";
+          
+          // Tìm phần trong ngoặc đơn ( )
+          const viMatch = rawText.match(/\((.*?)\)/);
+          if (viMatch) {
+            viText = viMatch[1]; // Lấy phần trong ngoặc
+            enText = rawText.replace(/\(.*?\)/g, "").trim(); // Xóa phần ngoặc đi
+          }
+
+          currentCaptions.push({ start, end, en: enText, vi: viText });
+        }
+      })
+      .catch(err => {
+        // Không làm gì cả nếu không có file phụ đề
+      });
+  }
+
+  // Hàm chuyển đổi thời gian VTT thành Giây
+  function timeToSeconds(timeStr) {
+    const parts = timeStr.replace(',', '.').split(':');
+    return parseFloat(parts[0]) * 3600 + parseFloat(parts[1]) * 60 + parseFloat(parts[2]);
+  }
+
+  // Cập nhật phụ đề liên tục theo thời gian audio
+  player.addEventListener('timeupdate', () => {
+    const currentTime = player.currentTime;
+    const mode = captionSelect.value;
+
+    if (mode === 'off') {
+      captionBox.style.display = 'none';
+      return;
+    }
+
+    // Tìm câu phụ đề khớp với thời gian hiện tại
+    const activeCap = currentCaptions.find(cap => currentTime >= cap.start && currentTime <= cap.end);
+    
+    if (activeCap) {
+      captionBox.style.display = 'block';
+      if (mode === 'en') {
+        captionBox.textContent = activeCap.en;
+      } else if (mode === 'vi') {
+        // Nếu không có tiếng Việt thì hiện tạm tiếng Anh
+        captionBox.textContent = activeCap.vi || activeCap.en; 
+      }
+    } else {
+      captionBox.style.display = 'none'; // Ẩn nếu khoảng trống
+    }
+  });
+
+  // Các sự kiện UI khác
+  folderSelect.addEventListener('change', e => loadFolder(e.target.value));
+  songSelect.addEventListener('change', e => playSong(parseInt(e.target.value)));
+  captionSelect.addEventListener('change', () => { player.dispatchEvent(new Event('timeupdate')); });
+
+  btnPlay.addEventListener('click', () => {
+    if (player.paused) { player.play(); btnPlay.textContent = '⏸'; }
+    else { player.pause(); btnPlay.textContent = '▶️'; }
+  });
+
+  document.getElementById('btnNext').addEventListener('click', () => {
+    if(currentSongs.length > 0) playSong((currentIndex + 1) % currentSongs.length);
+  });
+  document.getElementById('btnPrev').addEventListener('click', () => {
+    if(currentSongs.length > 0) playSong((currentIndex - 1 + currentSongs.length) % currentSongs.length);
+  });
+  btnLoop.addEventListener('click', () => {
+    player.loop = !player.loop;
+    btnLoop.classList.toggle('active', player.loop);
+  });
+  document.querySelectorAll('.speed-row button').forEach(btn => {
+    btn.addEventListener('click', () => {
+      player.playbackRate = parseFloat(btn.dataset.speed);
+      document.querySelectorAll('.speed-row button').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+    });
+  });
+  player.addEventListener('ended', () => {
+    if (!player.loop) playSong((currentIndex + 1) % currentSongs.length);
+  });
+</script>
+
+</body>
 </html>
+
+
+
+
 
 
 
